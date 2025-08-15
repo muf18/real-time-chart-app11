@@ -13,7 +13,7 @@ dependencies:
   http: ^1.2.0
   decimal: ^2.3.3
   fl_chart: ^0.66.0
-  candlesticks: ^2.2.0
+  candlesticks: ^2.1.0
   rate_limiter: ^1.0.0
   stream_transform: ^2.1.0
   logging: ^1.2.0
