@@ -1,0 +1,115 @@
+name: Flutter Build and Release
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  quality_gate:
+    name: Format • Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Pub get
+        run: flutter pub get
+      - name: Format check
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Analyze
+        run: flutter analyze --no-pub
+
+  build_desktop:
+    name: Build Unsigned Desktop Binaries
+    needs: quality_gate
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Enable desktop
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            flutter config --enable-windows-desktop
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            flutter config --enable-macos-desktop
+          else
+            flutter config --enable-linux-desktop
+          fi
+        shell: bash
+      - name: Pub get
+        run: flutter pub get
+      - name: Build
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            flutter build windows -t lib/main_desktop.dart --release
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            flutter build macos -t lib/main_desktop.dart --release
+          else
+            flutter build linux -t lib/main_desktop.dart --release
+          fi
+        shell: bash
+      - name: Package artifacts (zip/tar)
+        run: |
+          set -e
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            pwsh -Command "Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath desktop-windows-unsigned.zip"
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            cd build/macos/Build/Products/Release && zip -r ../../../../desktop-macos-unsigned.zip *.app
+          else
+            cd build/linux/x64/release && tar -czf ../../../../desktop-linux-unsigned.tar.gz bundle
+          fi
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}
+          path: |
+            desktop-*.zip
+            desktop-*.tar.gz
+          if-no-files-found: error
+
+  build_android_debug:
+    name: Build Android Debug APK
+    needs: quality_gate
+    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Pub get
+        run: flutter pub get
+      - name: Build Debug APK
+        run: flutter build apk --debug -t lib/main_mobile.dart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+  create_release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build_desktop, build_android_debug]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Assemble Release Files
+        run: |
+          mkdir -p release
+          find . -type f -name 'desktop-*' -exec cp {} release/ \;
+          find . -type f -name 'app-debug.apk' -exec cp {} release/ \;
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true

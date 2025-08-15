@@ -1,0 +1,26 @@
+name: crypto_chart_core_monolith
+description: Cross-platform real-time crypto price charting client with a monolithic pure-Dart core isolate.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  web_socket_channel: ^2.4.0
+  http: ^1.2.0
+  decimal: ^2.3.3
+  fl_chart: ^0.66.0
+  candlesticks: ^2.2.0
+  rate_limiter: ^1.0.0
+  stream_transform: ^2.1.0
+  logging: ^1.2.0
+  path_provider: ^2.1.3
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
